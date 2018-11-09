@@ -538,7 +538,7 @@ class Subsystem:
 
         return (phi, partitioned_repertoire)
 
-    def find_mip(self, direction, mechanism, purview):
+    def find_mip(self, direction, mechanism, purview, maxp):
         """Return the minimum information partition for a mechanism over a
         purview.
 
@@ -594,7 +594,17 @@ class Subsystem:
             # Update MIP if it's more minimal.
             if phi < mip.phi:
                 mip = _mip(phi, partition, partitioned_repertoire)
+                phistr = '= ' + str(round(mip.phi,4))
 
+            if phi < maxp:
+                phistr = '< ' + str(round(mip.phi,4))
+                break
+
+        if phi >= maxp:
+            print(str(direction) +
+            '.phi ' + phistr +
+            ', M:' + str(mechanism) +
+            ', P:' + str(purview))# +
         return mip
 
     def cause_mip(self, mechanism, purview):
@@ -661,7 +671,7 @@ class Subsystem:
         return irreducible_purviews(self.cm, direction, mechanism, purviews)
 
     @cache.method('_mice_cache')
-    def find_mice(self, direction, mechanism, purviews=False):
+    def find_mice(self, direction, mechanism, purviews=False, maxp=0):
         """Return the |MIC| or |MIE| for a mechanism.
 
         Args:
@@ -683,8 +693,24 @@ class Subsystem:
         if not purviews:
             max_mip = _null_ria(direction, mechanism, ())
         else:
-            max_mip = max(self.find_mip(direction, mechanism, purview)
-                          for purview in purviews)
+            #max_mip = max(self.find_mip(direction, mechanism, purview)
+            #              for purview in purviews)
+            #Andrew's shortcut
+            #maxmiplist = []
+            #tbmaxmips = [0]
+            mips = []
+            #maxp = 0
+            #maxp_ = 0
+            for purview in purviews:
+                mips.append(self.find_mip(direction, mechanism, purview, maxp))
+                if mips[-1].phi>maxp:
+                    maxp = mips[-1].phi
+            max_mip = max(mips)
+
+        if max_mip.phi>0:
+            print('CHOOSE: ' + str(direction) + '.phi:' + str(round(max_mip.phi,4)) + ', M:' + str(max_mip.mechanism) + ', P:' + str(max_mip.purview))
+            print('')
+
 
         if direction == Direction.CAUSE:
             return MaximallyIrreducibleCause(max_mip)
@@ -692,19 +718,19 @@ class Subsystem:
             return MaximallyIrreducibleEffect(max_mip)
         return validate.direction(direction)
 
-    def mic(self, mechanism, purviews=False):
+    def mic(self, mechanism, purviews=False, maxpCause=0):
         """Return the mechanism's maximally-irreducible cause (|MIC|).
 
         Alias for |find_mice()| with ``direction`` set to |CAUSE|.
         """
-        return self.find_mice(Direction.CAUSE, mechanism, purviews=purviews)
+        return self.find_mice(Direction.CAUSE, mechanism, purviews=purviews, maxp=maxpCause)
 
-    def mie(self, mechanism, purviews=False):
+    def mie(self, mechanism, purviews=False, maxpEffect=0):
         """Return the mechanism's maximally-irreducible effect (|MIE|).
 
         Alias for |find_mice()| with ``direction`` set to |EFFECT|.
         """
-        return self.find_mice(Direction.EFFECT, mechanism, purviews=purviews)
+        return self.find_mice(Direction.EFFECT, mechanism, purviews=purviews, maxp=maxpEffect)
 
     def phi_max(self, mechanism):
         """Return the |small_phi_max| of a mechanism.
@@ -743,7 +769,7 @@ class Subsystem:
 
     @time_annotated
     def concept(self, mechanism, purviews=False, cause_purviews=False,
-                effect_purviews=False):
+                effect_purviews=False, maxpCause=0, maxpEffect=0):
         """Return the concept specified by a mechanism within this subsytem.
 
         Args:
@@ -771,10 +797,10 @@ class Subsystem:
             return self.null_concept
 
         # Calculate the maximally irreducible cause repertoire.
-        cause = self.mic(mechanism, purviews=(cause_purviews or purviews))
+        cause = self.mic(mechanism, purviews=(cause_purviews or purviews), maxpCause=maxpCause)
 
         # Calculate the maximally irreducible effect repertoire.
-        effect = self.mie(mechanism, purviews=(effect_purviews or purviews))
+        effect = self.mie(mechanism, purviews=(effect_purviews or purviews), maxpEffect=maxpCause)
 
         log.debug('Found concept %s', mechanism)
 

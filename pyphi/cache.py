@@ -388,7 +388,7 @@ class DictMICECache(DictCache):
                 not memory_full()):
             self.cache[key] = mice
 
-    def key(self, direction, mechanism, purviews=False, _prefix=None):
+    def key(self, direction, mechanism, purviews=False, maxp=0, _prefix=None):
         """Cache key. This is the call signature of |Subsystem.find_mice()|."""
         return (_prefix, direction, mechanism, purviews)
 
